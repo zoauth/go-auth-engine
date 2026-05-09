@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question / Get help
+    url: https://github.com/zoauth/go-auth-engine/discussions/new?category=q-a
+    about: Ask questions and get help from the community
+  - name: Share an idea
+    url: https://github.com/zoauth/go-auth-engine/discussions/new?category=ideas
+    about: Suggest a feature or improvement
+  - name: Security vulnerability
+    url: https://github.com/zoauth/go-auth-engine/security/advisories/new
+    about: Report a security issue privately

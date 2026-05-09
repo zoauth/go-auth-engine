@@ -1,0 +1,50 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For general questions or ideas, please use [Discussions](https://github.com/zoauth/go-auth-engine/discussions) instead.
+        Use this form only for specific, actionable feature requests.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case or pain point
+      placeholder: "As an operator, I need ... because ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you tried any workarounds?
+
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Which tier should this belong to?
+      options:
+        - Community (free, self-hosted)
+        - Enterprise (license required)
+        - Not sure
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to implement this and open a PR

@@ -1,0 +1,121 @@
+# docker-compose.full-stack.yml
+# ZoAuth + PostgreSQL + Redis + Prometheus + Grafana
+#
+# Usage:
+#   cp .env.standalone.example .env
+#   docker compose -f full-stack.yml --env-file .env up -d
+#
+# Ports:
+#   ZoAuth:     http://localhost:8080
+#   Prometheus: http://localhost:9090
+#   Grafana:    http://localhost:3000  (admin / admin)
+
+version: '3.9'
+
+services:
+
+  zoauth:
+    image: ghcr.io/zoauth/go-auth-engine:${ZOAUTH_VERSION:-latest}
+    ports:
+      - "${PORT:-8080}:8080"
+      - "${METRICS_PORT:-9091}:9090"
+    environment:
+      DATABASE_URL:             "postgres://zoauth:${POSTGRES_PASSWORD:-zoauth_dev_pass}@postgres:5432/zoauth?sslmode=disable"
+      REDIS_URL:                "redis://redis:6379"
+      JWT_ISSUER:               "${JWT_ISSUER:-http://localhost:8080}"
+      JWT_ACCESS_TOKEN_TTL:     "${JWT_ACCESS_TOKEN_TTL:-1h}"
+      JWT_REFRESH_TOKEN_TTL:    "${JWT_REFRESH_TOKEN_TTL:-720h}"
+      JWK_ENCRYPTION_PASSWORD:  "${JWK_ENCRYPTION_PASSWORD}"
+      JWK_ENCRYPTION_SALT:      "${JWK_ENCRYPTION_SALT}"
+      JWK_ENCRYPTION_MODE:      "GCM"
+      SPRING_ENABLED:           "false"
+      AUTHCODE_NATIVE:          "true"
+      LOGOUT_NATIVE:            "true"
+      CONSENT_NATIVE:           "true"
+      DEVICE_NATIVE:            "true"
+      PAR_NATIVE:               "true"
+      DCR_NATIVE:               "true"
+      AUTHCODE_LOGIN_URL:       "${LOGIN_URL:-http://localhost:8080/login}"
+      SEED_DEFAULT_TENANT:      "${SEED_DEFAULT_TENANT:-false}"
+      SEED_ADMIN_EMAIL:         "${SEED_ADMIN_EMAIL:-admin@example.com}"
+      SEED_ADMIN_PASSWORD:      "${SEED_ADMIN_PASSWORD:-change-me-now}"
+      ZOAUTH_LICENSE_KEY:       "${ZOAUTH_LICENSE_KEY:-}"
+      METRICS_ENABLED:          "true"
+      LOG_LEVEL:                "${LOG_LEVEL:-info}"
+      LOG_FORMAT:               "${LOG_FORMAT:-json}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: ""   # set to http://otel-collector:4317 if using OTel
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/auth-engine", "--health-check"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER:     zoauth
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-zoauth_dev_pass}"
+      POSTGRES_DB:       zoauth
+    volumes:
+      - zoauth_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zoauth"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - zoauth_prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - zoauth_grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  zoauth_postgres_data:
+  zoauth_prometheus_data:
+  zoauth_grafana_data:
+
+# ── prometheus.yml (create alongside this file) ───────────────────────────────
+# global:
+#   scrape_interval: 15s
+# scrape_configs:
+#   - job_name: zoauth
+#     static_configs:
+#       - targets: ['zoauth:9090']

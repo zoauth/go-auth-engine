@@ -1,0 +1,116 @@
+# ZoAuth Helm values — production-ready example
+# helm install zoauth oci://ghcr.io/zoauth/charts/zoauth -f helm-values.yaml
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/zoauth/go-auth-engine
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# ── Config ────────────────────────────────────────────────────────────────────
+config:
+  jwtIssuer: "https://auth.example.com"
+  springEnabled: false
+  logFormat: json
+  logLevel: info
+  metricsEnabled: true
+  seedDefaultTenant: false
+
+  tokenTtl:
+    access: 1h
+    refresh: 720h
+
+  cors:
+    allowedOrigins: "https://app.example.com"
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# Reference an existing Kubernetes Secret rather than embedding values here.
+# Create with:
+#   kubectl create secret generic zoauth-secrets \
+#     --from-literal=JWK_ENCRYPTION_PASSWORD="..." \
+#     --from-literal=JWK_ENCRYPTION_SALT="..." \
+#     --from-literal=DATABASE_URL="postgres://..." \
+#     --namespace zoauth
+secrets:
+  existingSecret: zoauth-secrets
+
+# ── Service ───────────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 9090
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  host: auth.example.com
+  tls:
+    - secretName: zoauth-tls
+      hosts:
+        - auth.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+# ── Probes ────────────────────────────────────────────────────────────────────
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 3
+
+# ── Autoscaling ───────────────────────────────────────────────────────────────
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# ── Pod disruption budget ─────────────────────────────────────────────────────
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# ── Topology spread ───────────────────────────────────────────────────────────
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app: zoauth
+
+# ── Prometheus scraping ───────────────────────────────────────────────────────
+serviceMonitor:
+  enabled: true       # requires prometheus-operator
+  interval: 30s
+  path: /metrics
+  port: metrics
+
+# ── Bundled dependencies (for dev only — use managed services in production) ──
+postgresql:
+  enabled: false      # set true for local dev only
+
+redis:
+  enabled: false      # set true for local dev only
